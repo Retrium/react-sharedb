@@ -1,5 +1,5 @@
 module.export = {
 	hooks: {
-		'pre-commit': 'npm run lint lint && pretty-quick --staged',
+		'pre-commit': 'npm run lint && pretty-quick --staged',
 	},
 };
