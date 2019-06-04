@@ -1,47 +1,49 @@
 {
-  "name": "@retrium/react-sharedb",
-  "version": "0.1.0-alpha.0",
-  "description": "",
-  "main": "lib/index.js",
-  "scripts": {
-    "prebuild": "rimraf lib",
-    "build": "babel ./src --ignore ./src/**.test.js --out-dir ./lib",
-    "test": "tape -r @babel/register -r tape-catch './src/**.test.js' | tap-diff",
-    "lint": "eslint src",
-    "pretty": "prettier --write 'src/**/*.js'"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Retrium/react-sharedb.git"
-  },
-  "author": "ryan@retrium.com",
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/Retrium/react-sharedb/issues"
-  },
-  "homepage": "https://github.com/Retrium/react-sharedb#readme",
-  "devDependencies": {
-    "@babel/cli": "^7.4.4",
-    "@babel/core": "^7.4.5",
-    "@babel/preset-env": "^7.4.5",
-    "@babel/preset-flow": "^7.0.0",
-    "@babel/preset-react": "^7.0.0",
-    "@babel/register": "^7.4.4",
-    "babel-eslint": "^10.0.1",
-    "eslint": "^5.16.0",
-    "eslint-plugin-flowtype": "^3.9.1",
-    "eslint-plugin-react": "^7.13.0",
-    "eslint-plugin-react-hooks": "^1.6.0",
-    "eslint-plugin-tape": "^1.1.0",
-    "prettier": "^1.17.1",
-    "react-test-renderer": "^16.8.6",
-    "rimraf": "^2.6.3",
-    "tap-diff": "^0.1.1",
-    "tape": "^4.10.2",
-    "tape-catch": "^1.0.6"
-  },
-  "dependencies": {
-    "react": "^16.8.6",
-    "sharedb": "^1.0.0-beta.23"
-  }
+	"name": "@retrium/react-sharedb",
+	"version": "0.1.0-alpha.0",
+	"description": "",
+	"main": "lib/index.js",
+	"scripts": {
+		"prebuild": "rimraf lib",
+		"build": "babel ./src --ignore ./src/**.test.js --out-dir ./lib",
+		"test": "tape -r @babel/register -r tape-catch './src/**.test.js' | tap-diff",
+		"lint": "eslint src",
+		"pretty": "pretty-quick --staged"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/Retrium/react-sharedb.git"
+	},
+	"author": "ryan@retrium.com",
+	"license": "MIT",
+	"bugs": {
+		"url": "https://github.com/Retrium/react-sharedb/issues"
+	},
+	"homepage": "https://github.com/Retrium/react-sharedb#readme",
+	"devDependencies": {
+		"@babel/cli": "^7.4.4",
+		"@babel/core": "^7.4.5",
+		"@babel/preset-env": "^7.4.5",
+		"@babel/preset-flow": "^7.0.0",
+		"@babel/preset-react": "^7.0.0",
+		"@babel/register": "^7.4.4",
+		"babel-eslint": "^10.0.1",
+		"eslint": "^5.16.0",
+		"eslint-plugin-flowtype": "^3.9.1",
+		"eslint-plugin-react": "^7.13.0",
+		"eslint-plugin-react-hooks": "^1.6.0",
+		"eslint-plugin-tape": "^1.1.0",
+		"husky": "^2.3.0",
+		"prettier": "^1.17.1",
+		"pretty-quick": "^1.11.0",
+		"react-test-renderer": "^16.8.6",
+		"rimraf": "^2.6.3",
+		"tap-diff": "^0.1.1",
+		"tape": "^4.10.2",
+		"tape-catch": "^1.0.6"
+	},
+	"dependencies": {
+		"react": "^16.8.6",
+		"sharedb": "^1.0.0-beta.23"
+	}
 }
