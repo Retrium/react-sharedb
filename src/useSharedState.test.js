@@ -523,7 +523,7 @@ test.skip('react-sharedb: useSharedReducer suspends rendering if a document is d
 		remote.get(collection, doc_id).create({});
 
 		// initial render of the react tree
-		const { root, unmount, update } = TestRenderer.create(
+		const { root, unmount } = TestRenderer.create(
 			<SharedStateProvider connection={local}>
 				<Suspense fallback={<Loading />}>
 					<SharedState collection={collection} docId={doc_id}>

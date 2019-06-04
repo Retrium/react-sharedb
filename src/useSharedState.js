@@ -4,15 +4,6 @@ import { useContext, useEffect, useState, useCallback } from 'react';
 
 import { ShareContext } from './SharedStateProvider';
 
-function useThrower() {
-	const [, setState] = useState();
-	return function thrower(throwable: mixed) {
-		setState(() => {
-			throw throwable;
-		});
-	};
-}
-
 /** questions
   how should a hard rollback be handled?? should we throw a promise when the doc is being re-fetched?? can we even do this??
  */
