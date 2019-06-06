@@ -1,18 +1,19 @@
 {
 	"name": "@retrium/react-sharedb",
-	"version": "0.1.0-alpha.0",
+	"version": "0.1.0-alpha.3",
 	"description": "",
-	"main": "lib/index.js",
+	"main": "./lib/index.js",
 	"scripts": {
 		"prebuild": "rimraf lib",
-		"build": "babel ./src --ignore ./src/**.test.js --out-dir ./lib",
+		"build": "babel ./src --ignore '**/*.test.js' --out-dir ./lib",
 		"test": "tape -r @babel/register -r tape-catch './src/**.test.js' | tap-diff",
+		"prepublish": "npm run build",
 		"lint": "eslint src",
 		"pretty": "pretty-quick --staged"
 	},
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/Retrium/react-sharedb.git"
+		"url": "git@github.com:Retrium/react-sharedb.git"
 	},
 	"author": "ryan@retrium.com",
 	"license": "MIT",
