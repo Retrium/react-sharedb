@@ -2,8 +2,8 @@ module.exports = {
 	parserOptions: {
 		ecmaVersion: 2018,
 		ecmaFeatures: {
-			jsx: true
-		}
+			jsx: true,
+		},
 	},
 	env: {
 		browser: true,
@@ -14,8 +14,11 @@ module.exports = {
 		'eslint:recommended',
 		'plugin:flowtype/recommended',
 		'plugin:react/recommended',
+		'plugin:import/errors',
+		'plugin:import/warnings',
+		'prettier',
 	],
-	plugins: ['react', 'react-hooks', 'flowtype'],
+	plugins: ['react', 'react-hooks', 'flowtype', 'import'],
 	settings: {
 		react: {
 			// https://github.com/yannickcr/eslint-plugin-react#configuration
