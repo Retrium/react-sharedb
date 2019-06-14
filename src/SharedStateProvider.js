@@ -1,18 +1,24 @@
 // @flow
 
+import sharedb from 'sharedb/lib/client';
 import type { Node } from 'react';
-import React, { createContext } from 'react';
+import React, { createContext, useEffect, useRef, useState } from 'react';
 
-type SharedStateProviderProps = {
-	children: Node,
-	connection: ShareDb$Connection,
-};
+type SharedStateProviderProps =
+	| {
+			websocket: ShareDb$WebSocket,
+			children: Node,
+	  }
+	| {
+			connection: ShareDb$Connection,
+			children: Node,
+	  };
 
 type ShareDb$Doc$events = 'create' | 'op' | 'del' | 'load' | 'error';
 
 type ShareDb$Doc = {
 	// instance properties
-	+type: 'string' | null,
+	+type: string | null,
 	+version: number | null,
 	+data: mixed,
 
@@ -34,18 +40,79 @@ type ShareDb$Doc = {
 	_subscription_ref_count: number,
 };
 
+type ShareDb$WebSocket = {};
+
 type ShareDb$Connection = {
 	+get: (string, string) => ShareDb$Doc,
 	+getExisting: (string, string) => ?ShareDb$Doc,
 };
 
-export const ShareContext = createContext<?ShareDb$Connection>();
-
 export function SharedStateProvider({
 	connection,
+	websocket,
 	children,
-}: SharedStateProviderProps) {
+}: SharedStateProviderProps): Node {
+	if (process.env.NODE_ENV !== 'production') {
+		// eslint-disable-next-line react-hooks/rules-of-hooks
+		const first_conn_ref = useRef(connection);
+
+		if (!first_conn_ref.current) {
+			if (connection) {
+				// eslint-disable-next-line no-console
+				console.warn(
+					'<SharedStateProvider>: received `connection` but was not present on first render'
+				);
+			}
+		} else {
+			if (!connection) {
+				// eslint-disable-next-line no-console
+				console.warn(
+					'<SharedStateProvider>: received `connection` on first render but was not present'
+				);
+			} else if (first_conn_ref.current !== connection) {
+				// eslint-disable-next-line no-console
+				console.warn(
+					'<SharedStateProvider>: received different `connection` than first render'
+				);
+			}
+		}
+	}
+
+	const [managed_conn, setConn] = useState(null);
+
+	useEffect(() => {
+		if (!connection) {
+			// create a managed connection and bind it to a dummy websocket
+			const managed_conn = new sharedb.Connection({
+				close: () => {},
+				readyState: 3,
+			});
+			setConn(managed_conn);
+
+			return () => {
+				// TODO: figure out how to properly clean up the connection
+				// TODO: maybe bypass delayed calls to destroy docs?
+				managed_conn.close();
+				setConn(null);
+			};
+		}
+	}, [connection]);
+
+	useEffect(() => {
+		if (managed_conn && websocket) {
+			managed_conn.bindToSocket(websocket);
+		}
+	}, [managed_conn, websocket]);
+
+	if (!connection && !managed_conn) {
+		// can't render the provider and children until we have a connection
+		return null;
+	}
 	return (
-		<ShareContext.Provider value={connection}>{children}</ShareContext.Provider>
+		<ShareContext.Provider value={connection || managed_conn}>
+			{children}
+		</ShareContext.Provider>
 	);
 }
+
+export const ShareContext = createContext<?ShareDb$Connection>();
