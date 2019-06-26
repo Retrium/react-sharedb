@@ -5,14 +5,14 @@ import type { Node } from 'react';
 import React, { createContext, useEffect, useRef, useState } from 'react';
 
 type SharedStateProviderProps =
-	| {
-			websocket: ShareDb$WebSocket,
+	| {|
+			websocket?: WebSocket,
 			children: Node,
-	  }
-	| {
+	  |}
+	| {|
 			connection: ShareDb$Connection,
 			children: Node,
-	  };
+	  |};
 
 type ShareDb$Doc$events = 'create' | 'op' | 'del' | 'load' | 'error';
 
@@ -40,18 +40,18 @@ type ShareDb$Doc = {
 	_subscription_ref_count: number,
 };
 
-type ShareDb$WebSocket = {};
-
 type ShareDb$Connection = {
 	+get: (string, string) => ShareDb$Doc,
 	+getExisting: (string, string) => ?ShareDb$Doc,
+	+close: () => void,
+	+bindToSocket: WebSocket => void,
 };
 
-export function SharedStateProvider({
-	connection,
-	websocket,
-	children,
-}: SharedStateProviderProps): Node {
+export function SharedStateProvider(props: SharedStateProviderProps): Node {
+	const connection = props.connection || null;
+	const websocket = props.websocket || null;
+	const children = props.children;
+
 	if (process.env.NODE_ENV !== 'production') {
 		// eslint-disable-next-line react-hooks/rules-of-hooks
 		const first_conn_ref = useRef(connection);
@@ -78,12 +78,12 @@ export function SharedStateProvider({
 		}
 	}
 
-	const [managed_conn, setConn] = useState(null);
+	const [managed_conn, setConn] = useState<?ShareDb$Connection>(null);
 
 	useEffect(() => {
 		if (!connection) {
 			// create a managed connection and bind it to a dummy websocket
-			const managed_conn = new sharedb.Connection({
+			const managed_conn: ShareDb$Connection = new sharedb.Connection({
 				close: () => {},
 				readyState: 3,
 			});
