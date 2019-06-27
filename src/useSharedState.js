@@ -1,6 +1,6 @@
 // @flow
 
-import { useContext, useEffect, useState, useCallback } from 'react';
+import { useContext, useEffect, useState, useCallback, useRef } from 'react';
 
 import { ShareContext } from './SharedStateProvider';
 
@@ -10,7 +10,9 @@ import { ShareContext } from './SharedStateProvider';
 
 export function useSharedState(
 	collection: string,
-	doc_id: string
+	doc_id: string,
+	projector?: any => any,
+	deps?: Array
 ): [any, (mixed) => Promise<void>] {
 	const connection = useContext(ShareContext);
 
@@ -30,8 +32,18 @@ export function useSharedState(
 				throw maybe_doc._error;
 			default: {
 				// 'resolved'
+				const has_projector = !!projector;
 
-				const [{ state }, setState] = useState({ state: maybe_doc.data });
+				const memo_projector = useCallback(projector, [has_projector]);
+
+				const [{ state }, setState] = useState({
+					state: has_projector
+						? memo_projector(maybe_doc.data)
+						: maybe_doc.data,
+				});
+
+				const state_ref = useRef(state);
+
 				const dispatch = useCallback(
 					action => {
 						// todo: allow action to be a function that takes unprojected/unmapped state
@@ -50,10 +62,43 @@ export function useSharedState(
 
 				useEffect(() => {
 					const handle_op = () => {
-						setState({ state: maybe_doc.data });
+						if (!has_projector) {
+							setState({ state: maybe_doc.data });
+							state_ref.current = maybe_doc.data;
+							return;
+						}
+
+						const new_state = memo_projector(maybe_doc.data);
+						const { current: current_state } = state_ref;
+
+						if (typeof new_state !== typeof current_state) {
+							// rerender
+							setState({ state: maybe_doc.data });
+							state_ref.current = maybe_doc.data;
+							return;
+						}
+
+						if (Array.isArray(new_state)) {
+							// compare
+							return;
+						}
+
+						// if isPlainObject(new_state) { /* shallow compare */ }
+
+						if (new_state !== current_state) {
+							// rerender
+							setState({ state: memo_projector(maybe_doc.data) });
+							state_ref.current = new_state;
+						}
 					};
 					maybe_doc.addListener('op', handle_op);
 
+					return () => {
+						maybe_doc.removeListener('op', handle_op);
+					};
+				}, [maybe_doc, has_projector, memo_projector]);
+
+				useEffect(() => {
 					// increment the subscription ref count to indicate that this component is now subscribed to the doc
 					maybe_doc._subscription_ref_count++;
 
@@ -62,7 +107,6 @@ export function useSharedState(
 						// 	return;
 						// }
 						// todo: delay destroying the doc from ram for a given timeout.
-						maybe_doc.removeListener('op', handle_op);
 
 						// decrement the subscription ref count to indicate that this component is no longer subscribed to the doc
 						maybe_doc._subscription_ref_count--;

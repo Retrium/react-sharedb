@@ -3,11 +3,11 @@
 import test from 'tape';
 import sharedb from 'sharedb';
 
-import React, { Suspense } from 'react';
+import React, { Suspense, useEffect } from 'react';
 import type { Node } from 'react';
 import TestRenderer from 'react-test-renderer';
 
-import { SharedState, SharedStateProvider } from './index';
+import { SharedState, SharedStateProvider, useSharedState } from './index';
 
 function sleep(ms) {
 	return new Promise(resolve => setTimeout(resolve, ms));
@@ -564,4 +564,87 @@ test.skip('react-sharedb: useSharedReducer suspends rendering if a document is d
 	} catch (e) {
 		assert.end(e);
 	}
+});
+
+test.only('react-sharedb: useSharedState projector correctly filters the state', async assert => {
+	// Create a client connection to an in memory sharedb database to simulate
+	//  a frontend connection to sharedb running on a server.
+	const server = new sharedb.Backend();
+	const local = server.connect();
+	const remote = server.connect();
+
+	const collection = 'collection';
+	const doc_id = 'id:5456563';
+	const doc_state = {
+		doc_id: doc_id,
+		count1: 0,
+		count2: 0,
+	};
+
+	// create the doc via the secondary connection
+	const remote_doc = remote.get(collection, doc_id);
+	remote_doc.subscribe();
+	remote_doc.create(doc_state);
+
+	const MockWrapper = () => {
+		const [ count1, submit ] = useSharedState(
+			collection,
+			doc_id,
+			({ count1 }) => ( count1 )
+		);
+
+		return (
+			<Mock count1={count1} onSubmit={submit} />
+		)
+	}
+
+	// initial render of the react tree
+	const { root, unmount } = TestRenderer.create(
+		<SharedStateProvider connection={local}>
+			<Suspense fallback={<Loading />}>
+				<MockWrapper/>
+			</Suspense>
+		</SharedStateProvider>
+	);
+
+	// allow the sharedb server to flush updates
+	await sleep(0);
+
+	{
+		//const remote_doc = remote.get(collection, doc_id);
+		const [mock_instance] = root.findAllByType(Mock);
+
+		assert.equals(
+			mock_instance.props.count1,
+			0,
+			"The <Mock>'s count1 prop is 0."
+		);
+
+		// submit an operation to increment the count property by one
+		mock_instance.props.onSubmit({
+			p: ['count1'],
+			na: 1,
+		});
+	}
+
+	// allow the sharedb server to flush updates
+	await sleep(0);
+
+	{
+		const [mock_instance] = root.findAllByType(Mock);
+
+		assert.equals(
+			mock_instance.props.count1,
+			1,
+			"The <Mock>'s count prop is 1,"
+		);
+
+		assert.equals(
+			remote_doc.data.count1,
+			1,
+			"And the remote doc's count is also 1"
+		);
+	}
+
+	assert.end();
 });
