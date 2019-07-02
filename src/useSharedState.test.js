@@ -3,7 +3,7 @@
 import test from 'tape';
 import sharedb from 'sharedb';
 
-import React, { Suspense, useEffect } from 'react';
+import React, { Suspense, useRef } from 'react';
 import type { Node } from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 
@@ -288,7 +288,7 @@ test("react-sharedb: useSharedReducer causes a re-render when the doc's state ch
 	const remote_doc = remote.get(collection, doc_id);
 	remote_doc.create(doc_state);
 
-	let renderer, mock_instance;
+	let renderer = {};
 
 	act(() => {
 		renderer = TestRenderer.create(
@@ -300,18 +300,16 @@ test("react-sharedb: useSharedReducer causes a re-render when the doc's state ch
 				</Suspense>
 			</SharedStateProvider>
 		);
-	})
+	});
 
 	// initial render of the react tree
 	const { root, unmount } = renderer;
 
 	// allow the sharedb server to flush updates
-	await sleep(0);
+	await act(() => sleep(0));
 
 	{
-		act(() => {
-			mock_instance = root.findAllByType(Mock)[0];
-		})
+		const [mock_instance] = root.findAllByType(Mock);
 
 		assert.equals(
 			mock_instance.props.count,
@@ -321,18 +319,18 @@ test("react-sharedb: useSharedReducer causes a re-render when the doc's state ch
 	}
 
 	// submit an operation to increment the count property by one
-	remote_doc.submitOp({
-		p: ['count'],
-		na: 1,
+	act(() => {
+		remote_doc.submitOp({
+			p: ['count'],
+			na: 1,
+		});
 	});
 
 	// allow the sharedb server to flush updates
-	await sleep(0);
+	await act(() => sleep(0));
 
 	{
-		act(() => {
-			mock_instance = root.findAllByType(Mock)[0];
-		})
+		const [mock_instance] = root.findAllByType(Mock);
 
 		assert.equals(
 			mock_instance.props.count,
@@ -341,6 +339,8 @@ test("react-sharedb: useSharedReducer causes a re-render when the doc's state ch
 		);
 	}
 
+	remote_doc.unsubscribe();
+	remote_doc.destroy();
 	unmount();
 	assert.end();
 });
@@ -364,7 +364,7 @@ test('react-sharedb: when submitting operations via the submit function returned
 	remote_doc.subscribe();
 	remote_doc.create(doc_state);
 
-	let renderer, mock_instance;
+	let renderer = {};
 
 	act(() => {
 		renderer = TestRenderer.create(
@@ -376,20 +376,17 @@ test('react-sharedb: when submitting operations via the submit function returned
 				</Suspense>
 			</SharedStateProvider>
 		);
-	})
-
+	});
 
 	// initial render of the react tree
-	// const { root, unmount } = renderer;
+	const { root, unmount } = renderer;
 
 	// allow the sharedb server to flush updates
-	await sleep(0);
+	await act(() => sleep(0));
 
 	{
 		//const remote_doc = remote.get(collection, doc_id);
-		act(() => {
-			mock_instance = renderer.root.findAllByType(Mock)[0];
-		});
+		const [mock_instance] = root.findAllByType(Mock);
 
 		assert.equals(
 			mock_instance.props.count,
@@ -404,19 +401,19 @@ test('react-sharedb: when submitting operations via the submit function returned
 		);
 
 		// submit an operation to increment the count property by one
-		mock_instance.props.onSubmit({
-			p: ['count'],
-			na: 1,
+		act(() => {
+			mock_instance.props.onSubmit({
+				p: ['count'],
+				na: 1,
+			});
 		});
 	}
 
 	// allow the sharedb server to flush updates
-	await sleep(0);
+	await act(() => sleep(0));
 
 	{
-		act(() => {
-			mock_instance = renderer.root.findAllByType(Mock)[0];
-		});
+		const [mock_instance] = root.findAllByType(Mock);
 
 		assert.equals(
 			mock_instance.props.count,
@@ -434,7 +431,7 @@ test('react-sharedb: when submitting operations via the submit function returned
 	remote_doc.unsubscribe();
 	remote_doc.destroy();
 
-	renderer.unmount();
+	unmount();
 	assert.end();
 });
 
@@ -587,7 +584,7 @@ test.skip('react-sharedb: useSharedReducer suspends rendering if a document is d
 	}
 });
 
-test.only('react-sharedb: useSharedState projector correctly filters the state', async assert => {
+test('react-sharedb: useSharedState projector correctly filters the state', async assert => {
 	// Create a client connection to an in memory sharedb database to simulate
 	//  a frontend connection to sharedb running on a server.
 	const server = new sharedb.Backend();
@@ -599,7 +596,6 @@ test.only('react-sharedb: useSharedState projector correctly filters the state',
 	const doc_state = {
 		doc_id: doc_id,
 		count1: 0,
-		count2: 0,
 	};
 
 	// create the doc via the secondary connection
@@ -608,28 +604,32 @@ test.only('react-sharedb: useSharedState projector correctly filters the state',
 	remote_doc.create(doc_state);
 
 	const MockWrapper = () => {
-		const [ count1, submit ] = useSharedState(
+		const [count1, submit] = useSharedState(
 			collection,
 			doc_id,
-			({ count1 }) => ( count1 )
+			({ count1 }) => count1
 		);
 
-		return (
-			<Mock count1={count1} onSubmit={submit} />
-		)
-	}
+		return <Mock count1={count1} onSubmit={submit} />;
+	};
 
-	// initial render of the react tree
-	const { root, unmount } = TestRenderer.create(
-		<SharedStateProvider connection={local}>
-			<Suspense fallback={<Loading />}>
-				<MockWrapper/>
-			</Suspense>
-		</SharedStateProvider>
-	);
+	let renderer = {};
+
+	act(() => {
+		// initial render of the react tree
+		renderer = TestRenderer.create(
+			<SharedStateProvider connection={local}>
+				<Suspense fallback={<Loading />}>
+					<MockWrapper />
+				</Suspense>
+			</SharedStateProvider>
+		);
+	});
+
+	const { root, unmount } = renderer;
 
 	// allow the sharedb server to flush updates
-	await sleep(0);
+	await act(() => sleep(0));
 
 	{
 		//const remote_doc = remote.get(collection, doc_id);
@@ -641,15 +641,16 @@ test.only('react-sharedb: useSharedState projector correctly filters the state',
 			"The <Mock>'s count1 prop is 0."
 		);
 
-		// submit an operation to increment the count property by one
-		mock_instance.props.onSubmit({
-			p: ['count1'],
-			na: 1,
+		act(() => {
+			mock_instance.props.onSubmit({
+				p: ['count1'],
+				oi: 1,
+			});
 		});
 	}
 
 	// allow the sharedb server to flush updates
-	await sleep(0);
+	await act(() => sleep(0));
 
 	{
 		const [mock_instance] = root.findAllByType(Mock);
@@ -667,5 +668,165 @@ test.only('react-sharedb: useSharedState projector correctly filters the state',
 		);
 	}
 
+	remote_doc.unsubscribe();
+	remote_doc.destroy();
+
+	unmount();
+	assert.end();
+});
+
+test.only('react-sharedb: updating projected array', async assert => {
+	// Create a client connection to an in memory sharedb database to simulate
+	//  a frontend connection to sharedb running on a server.
+	const server = new sharedb.Backend();
+	const local = server.connect();
+	const remote = server.connect();
+
+	const collection = 'collection';
+	const doc_id = 'id:5456563';
+	const doc_state = {
+		doc_id: doc_id,
+		list: [],
+	};
+
+	// create the doc via the secondary connection
+	const remote_doc = remote.get(collection, doc_id);
+	remote_doc.subscribe();
+	remote_doc.create(doc_state);
+
+	const MockWrapper = () => {
+		const [list, submit] = useSharedState(
+			collection,
+			doc_id,
+			({ list }) => list
+		);
+
+		const render_count_ref = useRef(0);
+
+		render_count_ref.current++;
+
+		return (
+			<Mock
+				list={list}
+				getRenderCount={() => render_count_ref.current}
+				onSubmit={submit}
+			/>
+		);
+	};
+
+	let renderer = {};
+
+	act(() => {
+		// initial render of the react tree
+		renderer = TestRenderer.create(
+			<SharedStateProvider connection={local}>
+				<Suspense fallback={<Loading />}>
+					<MockWrapper />
+				</Suspense>
+			</SharedStateProvider>
+		);
+	});
+
+	const { root, unmount } = renderer;
+
+	// allow the sharedb server to flush updates
+	await act(() => sleep(0));
+
+	{
+		//const remote_doc = remote.get(collection, doc_id);
+		const [mock_instance] = root.findAllByType(Mock);
+
+		assert.equals(
+			mock_instance.props.getRenderCount(),
+			1,
+			'Rendered exactly 1 time'
+		);
+
+		// submit an operation to add item to list
+		act(() => {
+			mock_instance.props.onSubmit({
+				p: ['list', 0],
+				li: 0,
+			});
+		});
+	}
+
+	// allow the sharedb server to flush updates
+	await act(() => sleep(0));
+
+	{
+		const [mock_instance] = root.findAllByType(Mock);
+
+		assert.equals(
+			mock_instance.props.getRenderCount(),
+			2,
+			'Rendered exactly 2 times'
+		);
+
+		assert.equals(
+			mock_instance.props.list[0],
+			0,
+			'Adding an item to the list.'
+		);
+
+		// submit an operation to add item to list
+		act(() => {
+			mock_instance.props.onSubmit({
+				p: ['list', 1],
+				li: 1,
+			});
+		});
+	}
+
+	// allow the sharedb server to flush updates
+	await act(() => sleep(0));
+
+	{
+		const [mock_instance] = root.findAllByType(Mock);
+
+		// assert.comment(JSON.stringify(remote_doc.data.list));
+		// assert.comment(JSON.stringify(mock_instance.props));
+
+		assert.equals(
+			mock_instance.props.getRenderCount(),
+			3,
+			'Rendered exactly 3 times'
+		);
+
+		assert.equals(
+			mock_instance.props.list[1],
+			1,
+			'Adding a second item to the list.'
+		);
+
+		// submit an operation to add item to list
+		act(() => {
+			mock_instance.props.onSubmit({
+				p: ['list', 1],
+				ld: 1,
+			});
+		});
+	}
+
+	{
+		const [mock_instance] = root.findAllByType(Mock);
+
+		assert.equals(
+			mock_instance.props.getRenderCount(),
+			4,
+			'Rendered exactly 4 times'
+		);
+
+		assert.equals(
+			mock_instance.props.list[1],
+			undefined,
+			'Removing an item from the list.'
+		);
+	}
+
+	remote_doc.unsubscribe();
+	remote_doc.destroy();
+
+	unmount();
 	assert.end();
 });

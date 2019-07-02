@@ -1,7 +1,9 @@
 // @flow
 
 import { useContext, useEffect, useState, useCallback, useRef } from 'react';
-
+import { isPlainObject, deepClone } from 'mout/lang';
+import { equals as arrayShallowEquals } from 'mout/array';
+import { equals as objectShallowEquals } from 'mout/object';
 import { ShareContext } from './SharedStateProvider';
 
 /** questions
@@ -12,7 +14,7 @@ export function useSharedState(
 	collection: string,
 	doc_id: string,
 	projector?: any => any,
-	deps?: Array
+	deps?: Array<mixed>
 ): [any, (mixed) => Promise<void>] {
 	const connection = useContext(ShareContext);
 
@@ -33,12 +35,17 @@ export function useSharedState(
 			default: {
 				// 'resolved'
 				const has_projector = !!projector;
+				const should_clone = true;
 
-				const memo_projector = useCallback(projector, [has_projector]);
+				const memo_projector = useCallback(projector || (state => state), [
+					has_projector,
+				]);
 
 				const [{ state }, setState] = useState({
 					state: has_projector
-						? memo_projector(maybe_doc.data)
+						? should_clone
+							? deepClone(memo_projector(maybe_doc.data))
+							: memo_projector(maybe_doc.data)
 						: maybe_doc.data,
 				});
 
@@ -63,32 +70,70 @@ export function useSharedState(
 				useEffect(() => {
 					const handle_op = () => {
 						if (!has_projector) {
-							setState({ state: maybe_doc.data });
 							state_ref.current = maybe_doc.data;
-							return;
-						}
-
-						const new_state = memo_projector(maybe_doc.data);
-						const { current: current_state } = state_ref;
-
-						if (typeof new_state !== typeof current_state) {
-							// rerender
 							setState({ state: maybe_doc.data });
-							state_ref.current = maybe_doc.data;
 							return;
 						}
 
-						if (Array.isArray(new_state)) {
-							// compare
-							return;
-						}
+						const projected_state = memo_projector(maybe_doc.data);
+						const { current: current_projected_state } = state_ref;
 
-						// if isPlainObject(new_state) { /* shallow compare */ }
-
-						if (new_state !== current_state) {
+						if (typeof projected_state !== typeof current_projected_state) {
 							// rerender
-							setState({ state: memo_projector(maybe_doc.data) });
-							state_ref.current = new_state;
+							const state = should_clone
+								? deepClone(projected_state)
+								: projected_state;
+
+							state_ref.current = state;
+							setState({ state });
+							return;
+						}
+
+						if (
+							Array.isArray(projected_state) &&
+							Array.isArray(current_projected_state)
+						) {
+							// if lengths are not the same then rerender
+							if (
+								!arrayShallowEquals(projected_state, current_projected_state)
+							) {
+								const state = should_clone
+									? deepClone(projected_state)
+									: projected_state;
+
+								state_ref.current = state;
+								setState({ state });
+								return;
+							}
+
+							return;
+						}
+
+						if (
+							isPlainObject(projected_state) &&
+							isPlainObject(current_projected_state)
+						) {
+							// if they have a different amount of keys, rerender:
+							if (
+								objectShallowEquals(projected_state, current_projected_state)
+							) {
+								const state = should_clone
+									? deepClone(projected_state)
+									: projected_state;
+
+								state_ref.current = state;
+								setState({ state });
+								return;
+							}
+
+							return;
+						}
+
+						// if we're here it's likely a number, bool, string, etc. so do an equality check
+						if (projected_state !== current_projected_state) {
+							// rerender
+							setState({ state: projected_state });
+							state_ref.current = projected_state;
 						}
 					};
 					maybe_doc.addListener('op', handle_op);
