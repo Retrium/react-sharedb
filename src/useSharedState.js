@@ -115,7 +115,7 @@ export function useSharedState(
 						) {
 							// if they have a different amount of keys, rerender:
 							if (
-								objectShallowEquals(projected_state, current_projected_state)
+								!objectShallowEquals(projected_state, current_projected_state)
 							) {
 								const state = should_clone
 									? deepClone(projected_state)
