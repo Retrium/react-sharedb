@@ -4,6 +4,7 @@ import { useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { isPlainObject, deepClone } from 'mout/lang';
 import { equals as arrayShallowEquals } from 'mout/array';
 import { equals as objectShallowEquals } from 'mout/object';
+import { identity } from 'mout/function'
 import { ShareContext } from './SharedStateProvider';
 
 /** questions
@@ -15,7 +16,7 @@ export function useSharedState(
 	doc_id: string,
 	projector?: any => any,
 	deps?: Array<mixed>
-): [any, (mixed) => Promise<void>] {
+): [any, ((any) => any | any) => Promise<void>] {
 	const connection = useContext(ShareContext);
 
 	if (!connection) {
@@ -37,9 +38,7 @@ export function useSharedState(
 				const has_projector = !!projector;
 				const should_clone = true;
 
-				const memo_projector = useCallback(projector || (state => state), [
-					has_projector,
-				]);
+				const memo_projector = useCallback(projector || identity, deps);
 
 				const [{ state }, setState] = useState({
 					state: has_projector
@@ -52,16 +51,25 @@ export function useSharedState(
 				const state_ref = useRef(state);
 
 				const dispatch = useCallback(
-					action => {
-						// todo: allow action to be a function that takes unprojected/unmapped state
-						//        and returns an action
+					(action: any => any | any): Promise<void> => {
 						// todo: add validation that prevents submitting ops when the doc has been destroyed
-
-						return new Promise(resolve => {
-							maybe_doc.submitOp(action, () => {
-								// todo: figure out how errors are to be handled
-								resolve();
-							});
+						return new Promise((resolve, reject) => {
+							try {
+								maybe_doc.submitOp(
+									typeof action === 'function'
+										? action(maybe_doc.data)
+										: action,
+									err => {
+										if (err) {
+											reject(err);
+										} else {
+											resolve();
+										}
+									}
+								);
+							} catch (err) {
+								reject(err);
+							}
 						});
 					},
 					[maybe_doc]
@@ -141,7 +149,7 @@ export function useSharedState(
 					return () => {
 						maybe_doc.removeListener('op', handle_op);
 					};
-				}, [maybe_doc, has_projector, memo_projector]);
+				}, [should_clone, maybe_doc, has_projector, memo_projector]);
 
 				useEffect(() => {
 					// increment the subscription ref count to indicate that this component is now subscribed to the doc

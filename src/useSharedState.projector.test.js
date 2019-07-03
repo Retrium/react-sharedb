@@ -659,3 +659,82 @@ test('react-sharedb: useSharedState updating directly projected object in doc st
 	unmount();
     assert.end();
 });
+
+test('react-sharedb: passing a function in to dispatch', async assert => {
+	const server = new sharedb.Backend();
+	const local = server.connect();
+	const remote = server.connect();
+
+	const collection = 'collection';
+	const doc_id = 'id:5456563';
+	const doc_state = {
+		doc_id: doc_id,
+		count1: 0,
+		count2: 2,
+	};
+
+	// create the doc via the secondary connection
+	const remote_doc = remote.get(collection, doc_id);
+	remote_doc.subscribe();
+	remote_doc.create(doc_state);
+
+	let renderer = {};
+
+	const MockWrapper = () => {
+		const [count1, submit] = useSharedState(
+			collection,
+			doc_id,
+			({ count1 }) => count1
+		);
+
+		return <Mock count1={count1} onSubmit={submit} />;
+	};
+
+	act(() => {
+		// initial render of the react tree
+		renderer = TestRenderer.create(
+			<SharedStateProvider connection={local}>
+				<Suspense fallback={<Loading />}>
+					<MockWrapper />
+				</Suspense>
+			</SharedStateProvider>
+		);
+	});
+
+	const { root, unmount } = renderer;
+
+	// allow the sharedb server to flush updates
+	await act(() => sleep(0));
+
+	{
+		const [mock_instance] = root.findAllByType(Mock);
+
+		act(() => {
+			mock_instance.props.onSubmit(state => {
+				return {
+					p: ['count1'],
+					oi: state.count2,
+				};
+			});
+		});
+	}
+
+	// allow the sharedb server to flush updates
+	await act(() => sleep(0));
+
+	{
+		const [mock_instance] = root.findAllByType(Mock);
+
+		assert.equals(
+			mock_instance.props.count1,
+			2,
+			"The <Mock>'s count1 prop is now equal to its count2 prop."
+		);
+	}
+
+	remote_doc.unsubscribe();
+	remote_doc.destroy();
+
+	unmount();
+	assert.end();
+});
