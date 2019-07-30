@@ -1,7 +1,7 @@
 // @flow
 import test from 'tape';
 import sharedb from 'sharedb';
-import React, { Suspense, useRef } from 'react';
+import React, { Suspense, useRef, useState } from 'react';
 import { useSharedState } from './useSharedState';
 import TestRenderer, { act } from 'react-test-renderer';
 import { SharedStateProvider } from './SharedStateProvider';
@@ -504,8 +504,8 @@ test('react-sharedb: useSharedState updating projected plain object tuple', asyn
 		assert.equals(
 			mock_instance.props.prop1,
 			1,
-			'The property was properly updated',
-		)
+			'The property was properly updated'
+		);
 
 		act(() => {
 			mock_instance.props.onSubmit({
@@ -519,7 +519,7 @@ test('react-sharedb: useSharedState updating projected plain object tuple', asyn
 
 	{
 		//const remote_doc = remote.get(collection, doc_id);
-		const [ mock_instance ] = root.findAllByType( Mock );
+		const [mock_instance] = root.findAllByType(Mock);
 
 		assert.equals(
 			mock_instance.props.getRenderCount(),
@@ -550,7 +550,7 @@ test('react-sharedb: useSharedState updating directly projected object in doc st
 			prop1: 'one',
 			prop2: 0,
 			prop3: '',
-		}
+		},
 	};
 
 	// create the doc via the secondary connection
@@ -562,7 +562,7 @@ test('react-sharedb: useSharedState updating directly projected object in doc st
 		const [{ prop1, prop2 }, submit] = useSharedState(
 			collection,
 			doc_id,
-			({ thing }) => thing,
+			({ thing }) => thing
 		);
 
 		const render_count_ref = useRef(0);
@@ -620,11 +620,7 @@ test('react-sharedb: useSharedState updating directly projected object in doc st
 	{
 		const [mock_instance] = root.findAllByType(Mock);
 
-		assert.equals(
-			mock_instance.props.prop1,
-			'two',
-			'The prop was updated.'
-		)
+		assert.equals(mock_instance.props.prop1, 'two', 'The prop was updated.');
 
 		assert.equals(
 			mock_instance.props.getRenderCount(),
@@ -649,7 +645,7 @@ test('react-sharedb: useSharedState updating directly projected object in doc st
 		assert.equals(
 			mock_instance.props.getRenderCount(),
 			2,
-			'Rendered exactly 2 times'
+			'Rendered exactly 2 times after updating doc but not changing value'
 		);
 	}
 
@@ -657,7 +653,7 @@ test('react-sharedb: useSharedState updating directly projected object in doc st
 	remote_doc.destroy();
 
 	unmount();
-    assert.end();
+	assert.end();
 });
 
 test('react-sharedb: passing a function in to dispatch', async assert => {
@@ -730,6 +726,86 @@ test('react-sharedb: passing a function in to dispatch', async assert => {
 			2,
 			"The <Mock>'s count1 prop is now equal to its count2 prop."
 		);
+	}
+
+	remote_doc.unsubscribe();
+	remote_doc.destroy();
+
+	unmount();
+	assert.end();
+});
+
+test('react-sharedb: passing in deps', async assert => {
+	const server = new sharedb.Backend();
+	const local = server.connect();
+	const remote = server.connect();
+
+	const collection = 'collection';
+	const doc_id = 'id:5456563';
+	const doc_state = {
+		doc_id: doc_id,
+		count1: 0,
+	};
+
+	// create the doc via the secondary connection
+	const remote_doc = remote.get(collection, doc_id);
+	remote_doc.subscribe();
+	remote_doc.create(doc_state);
+
+	let renderer = {};
+
+	const MockWrapper = () => {
+		const [num, setNum] = useState(0);
+		const [projection, onSubmit] = useSharedState(
+			collection,
+			doc_id,
+			() => num,
+			[]
+		);
+
+		return <Mock projection={projection} onSubmit={onSubmit} setNum={setNum} />;
+	};
+
+	act(() => {
+		// initial render of the react tree
+		renderer = TestRenderer.create(
+			<SharedStateProvider connection={local}>
+				<Suspense fallback={<Loading />}>
+					<MockWrapper />
+				</Suspense>
+			</SharedStateProvider>
+		);
+	});
+
+	const { root, unmount } = renderer;
+
+	// allow the sharedb server to flush updates
+	await act(() => sleep(0));
+
+	{
+		const [mock_instance] = root.findAllByType(Mock);
+
+		assert.equals(mock_instance.props.projection, 0, 'Projected value is 0');
+
+		act(() => {
+			mock_instance.props.setNum(num => num + 1);
+		});
+
+		act(() => {
+			mock_instance.props.onSubmit({
+				p: ['count1'],
+				oi: 1,
+			});
+		});
+	}
+
+	// allow the sharedb server to flush updates
+	await act(() => sleep(0));
+
+	{
+		const [mock_instance] = root.findAllByType(Mock);
+
+		assert.equals(mock_instance.props.projection, 0, 'Projected value is still 0');
 	}
 
 	remote_doc.unsubscribe();
