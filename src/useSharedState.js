@@ -1,7 +1,10 @@
 // @flow
 
-import { useContext, useEffect, useState, useCallback } from 'react';
-
+import { useContext, useEffect, useState, useCallback, useRef } from 'react';
+import { isPlainObject, deepClone } from 'mout/lang';
+import { equals as arrayShallowEquals } from 'mout/array';
+import { equals as objectShallowEquals } from 'mout/object';
+import { identity } from 'mout/function'
 import { ShareContext } from './SharedStateProvider';
 
 /** questions
@@ -10,8 +13,10 @@ import { ShareContext } from './SharedStateProvider';
 
 export function useSharedState(
 	collection: string,
-	doc_id: string
-): [any, (mixed) => Promise<void>] {
+	doc_id: string,
+	projector?: any => any,
+	deps?: Array<mixed>
+): [any, ((any) => any | any) => Promise<void>] {
 	const connection = useContext(ShareContext);
 
 	if (!connection) {
@@ -30,19 +35,41 @@ export function useSharedState(
 				throw maybe_doc._error;
 			default: {
 				// 'resolved'
+				const has_projector = !!projector;
+				const should_clone = true;
 
-				const [{ state }, setState] = useState({ state: maybe_doc.data });
+				const memo_projector = useCallback(projector || identity, deps);
+
+				const [{ state }, setState] = useState({
+					state: has_projector
+						? should_clone
+							? deepClone(memo_projector(maybe_doc.data))
+							: memo_projector(maybe_doc.data)
+						: maybe_doc.data,
+				});
+
+				const state_ref = useRef(state);
+
 				const dispatch = useCallback(
-					action => {
-						// todo: allow action to be a function that takes unprojected/unmapped state
-						//        and returns an action
+					(action: any => any | any): Promise<void> => {
 						// todo: add validation that prevents submitting ops when the doc has been destroyed
-
-						return new Promise(resolve => {
-							maybe_doc.submitOp(action, () => {
-								// todo: figure out how errors are to be handled
-								resolve();
-							});
+						return new Promise((resolve, reject) => {
+							try {
+								maybe_doc.submitOp(
+									typeof action === 'function'
+										? action(maybe_doc.data)
+										: action,
+									err => {
+										if (err) {
+											reject(err);
+										} else {
+											resolve();
+										}
+									}
+								);
+							} catch (err) {
+								reject(err);
+							}
 						});
 					},
 					[maybe_doc]
@@ -50,10 +77,81 @@ export function useSharedState(
 
 				useEffect(() => {
 					const handle_op = () => {
-						setState({ state: maybe_doc.data });
+						if (!has_projector) {
+							state_ref.current = maybe_doc.data;
+							setState({ state: maybe_doc.data });
+							return;
+						}
+
+						const projected_state = memo_projector(maybe_doc.data);
+						const { current: current_projected_state } = state_ref;
+
+						if (typeof projected_state !== typeof current_projected_state) {
+							// rerender
+							const state = should_clone
+								? deepClone(projected_state)
+								: projected_state;
+
+							state_ref.current = state;
+							setState({ state });
+							return;
+						}
+
+						if (
+							Array.isArray(projected_state) &&
+							Array.isArray(current_projected_state)
+						) {
+							// if lengths are not the same then rerender
+							if (
+								!arrayShallowEquals(projected_state, current_projected_state)
+							) {
+								const state = should_clone
+									? deepClone(projected_state)
+									: projected_state;
+
+								state_ref.current = state;
+								setState({ state });
+								return;
+							}
+
+							return;
+						}
+
+						if (
+							isPlainObject(projected_state) &&
+							isPlainObject(current_projected_state)
+						) {
+							// if they have a different amount of keys, rerender:
+							if (
+								!objectShallowEquals(projected_state, current_projected_state)
+							) {
+								const state = should_clone
+									? deepClone(projected_state)
+									: projected_state;
+
+								state_ref.current = state;
+								setState({ state });
+								return;
+							}
+
+							return;
+						}
+
+						// if we're here it's likely a number, bool, string, etc. so do an equality check
+						if (projected_state !== current_projected_state) {
+							// rerender
+							setState({ state: projected_state });
+							state_ref.current = projected_state;
+						}
 					};
 					maybe_doc.addListener('op', handle_op);
 
+					return () => {
+						maybe_doc.removeListener('op', handle_op);
+					};
+				}, [should_clone, maybe_doc, has_projector, memo_projector]);
+
+				useEffect(() => {
 					// increment the subscription ref count to indicate that this component is now subscribed to the doc
 					maybe_doc._subscription_ref_count++;
 
@@ -62,7 +160,6 @@ export function useSharedState(
 						// 	return;
 						// }
 						// todo: delay destroying the doc from ram for a given timeout.
-						maybe_doc.removeListener('op', handle_op);
 
 						// decrement the subscription ref count to indicate that this component is no longer subscribed to the doc
 						maybe_doc._subscription_ref_count--;

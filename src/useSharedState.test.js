@@ -5,9 +5,9 @@ import sharedb from 'sharedb';
 
 import React, { Suspense } from 'react';
 import type { Node } from 'react';
-import TestRenderer from 'react-test-renderer';
+import TestRenderer, { act } from 'react-test-renderer';
 
-import { SharedState, SharedStateProvider } from './index';
+import { SharedState, SharedStateProvider, useSharedState } from './index';
 
 function sleep(ms) {
 	return new Promise(resolve => setTimeout(resolve, ms));
@@ -288,19 +288,25 @@ test("react-sharedb: useSharedReducer causes a re-render when the doc's state ch
 	const remote_doc = remote.get(collection, doc_id);
 	remote_doc.create(doc_state);
 
+	let renderer = {};
+
+	act(() => {
+		renderer = TestRenderer.create(
+			<SharedStateProvider connection={local}>
+				<Suspense fallback={<Loading />}>
+					<SharedState key={doc_id} collection={collection} docId={doc_id}>
+						{(state, submit) => <Mock count={state.count} onSubmit={submit} />}
+					</SharedState>
+				</Suspense>
+			</SharedStateProvider>
+		);
+	});
+
 	// initial render of the react tree
-	const { root, unmount } = TestRenderer.create(
-		<SharedStateProvider connection={local}>
-			<Suspense fallback={<Loading />}>
-				<SharedState key={doc_id} collection={collection} docId={doc_id}>
-					{(state, submit) => <Mock count={state.count} onSubmit={submit} />}
-				</SharedState>
-			</Suspense>
-		</SharedStateProvider>
-	);
+	const { root, unmount } = renderer;
 
 	// allow the sharedb server to flush updates
-	await sleep(0);
+	await act(() => sleep(0));
 
 	{
 		const [mock_instance] = root.findAllByType(Mock);
@@ -313,13 +319,15 @@ test("react-sharedb: useSharedReducer causes a re-render when the doc's state ch
 	}
 
 	// submit an operation to increment the count property by one
-	remote_doc.submitOp({
-		p: ['count'],
-		na: 1,
+	act(() => {
+		remote_doc.submitOp({
+			p: ['count'],
+			na: 1,
+		});
 	});
 
 	// allow the sharedb server to flush updates
-	await sleep(0);
+	await act(() => sleep(0));
 
 	{
 		const [mock_instance] = root.findAllByType(Mock);
@@ -331,6 +339,8 @@ test("react-sharedb: useSharedReducer causes a re-render when the doc's state ch
 		);
 	}
 
+	remote_doc.unsubscribe();
+	remote_doc.destroy();
 	unmount();
 	assert.end();
 });
@@ -354,19 +364,25 @@ test('react-sharedb: when submitting operations via the submit function returned
 	remote_doc.subscribe();
 	remote_doc.create(doc_state);
 
+	let renderer = {};
+
+	act(() => {
+		renderer = TestRenderer.create(
+			<SharedStateProvider connection={local}>
+				<Suspense fallback={<Loading />}>
+					<SharedState key={doc_id} collection={collection} docId={doc_id}>
+						{(state, submit) => <Mock count={state.count} onSubmit={submit} />}
+					</SharedState>
+				</Suspense>
+			</SharedStateProvider>
+		);
+	});
+
 	// initial render of the react tree
-	const { root, unmount } = TestRenderer.create(
-		<SharedStateProvider connection={local}>
-			<Suspense fallback={<Loading />}>
-				<SharedState key={doc_id} collection={collection} docId={doc_id}>
-					{(state, submit) => <Mock count={state.count} onSubmit={submit} />}
-				</SharedState>
-			</Suspense>
-		</SharedStateProvider>
-	);
+	const { root, unmount } = renderer;
 
 	// allow the sharedb server to flush updates
-	await sleep(0);
+	await act(() => sleep(0));
 
 	{
 		//const remote_doc = remote.get(collection, doc_id);
@@ -385,14 +401,16 @@ test('react-sharedb: when submitting operations via the submit function returned
 		);
 
 		// submit an operation to increment the count property by one
-		mock_instance.props.onSubmit({
-			p: ['count'],
-			na: 1,
+		act(() => {
+			mock_instance.props.onSubmit({
+				p: ['count'],
+				na: 1,
+			});
 		});
 	}
 
 	// allow the sharedb server to flush updates
-	await sleep(0);
+	await act(() => sleep(0));
 
 	{
 		const [mock_instance] = root.findAllByType(Mock);

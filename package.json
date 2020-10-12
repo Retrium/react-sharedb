@@ -1,12 +1,14 @@
 {
 	"name": "@retrium/react-sharedb",
-	"version": "0.1.0-alpha.3",
+	"version": "0.1.0-alpha.5",
 	"description": "",
 	"main": "./lib/index.js",
 	"scripts": {
 		"prebuild": "rimraf lib",
 		"build": "babel ./src --ignore '**/*.test.js' --out-dir ./lib",
-		"test": "tape -r @babel/register -r tape-catch './src/**.test.js' | tap-diff",
+		"test": "tape -r @babel/register -r tape-catch './src/**/*.test.js*' | tap-notify | tap-diff",
+		"test:watch": "watch 'clear && npm run test' ./src",
+		"test:debug": "node --inspect-brk -r @babel/register -r tape-catch ./node_modules/.bin/tape './src/**/*.test.js*'",
 		"prepublish": "npm run build",
 		"lint": "eslint src",
 		"pretty": "pretty-quick --staged"
@@ -40,14 +42,17 @@
 		"husky": "^2.3.0",
 		"prettier": "^1.17.1",
 		"pretty-quick": "^1.11.0",
-		"react-test-renderer": "^16.8.6",
+		"react-test-renderer": "^16.9.0-alpha.0",
 		"rimraf": "^2.6.3",
 		"tap-diff": "^0.1.1",
+		"tap-notify": "^1.0.0",
 		"tape": "^4.10.2",
-		"tape-catch": "^1.0.6"
+		"tape-catch": "^1.0.6",
+		"watch": "^1.0.2"
 	},
 	"dependencies": {
-		"react": "^16.8.6",
+		"mout": "^1.1.0",
+		"react": "^16.9.0-alpha.0",
 		"sharedb": "^1.0.0-beta.23"
 	}
 }
